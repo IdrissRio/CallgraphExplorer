@@ -1,0 +1,69 @@
+{
+  "name": "cats",
+  "displayName": "CAT",
+  "description": "CAT (CallGraph Analysis Tool) is a Java tool that constructs call graphs based on Class Hierarchy Analaysis and a variant of Rapid Type Analysis. It uses JastAdd and reference attribute grammars for its implementation. CAT also uses some API provided by the ExtendJ Java compiler to compute the call graph.",
+  "version": "0.0.1",
+  "author": "Idriss Riouak",
+  "license": "EPL-2.0",
+  "publisher": "IdrissRiouak",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:java"
+  ],
+  "main": "./dist/extension.js",
+  "languages": [
+    {
+      "id": "java",
+      "extensions": [
+        ".java"
+      ]
+    }
+  ],
+  "codeLens": {
+    "provides": [
+      "java"
+    ]
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "idriss.riouak.cat",
+        "title": "CallGraph"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8",
+    "eslint": "^8.56.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

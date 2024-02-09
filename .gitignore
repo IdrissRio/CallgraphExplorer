@@ -1,0 +1,7 @@
+out
+dist
+node_modules
+.vscode-test/
+*.vsix
+src/extension.js
+src/extension.js.map
