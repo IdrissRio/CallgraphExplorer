@@ -1,7 +1,7 @@
 # CAT - CallGraph Analysis Tool
 
 <p align="center">
-  <img width="300"  src="https://raw.githubusercontent.com/idrissrio/CallgraphExplorer/main/resources/logo.jpg">
+  <img width="300"  src="https://github.com/IdrissRio/CallgraphExplorer/blob/5dec749e56944ea969016e4ab031496ee9898bfc/resources/logo.jpg?raw=true">
 </p>
 
 CAT (CallGraph Analysis Tool) is a Java tool that constructs call graphs based 
