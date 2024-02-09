@@ -1,26 +1,13 @@
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import * as path from 'path';
-import WebSocket from 'ws';
+
 import * as fs from 'fs';
-import * as http from 'http';
-import ws from 'ws';
 
 let panel:vscode.WebviewPanel | undefined;
 let method: any;
-const server = http.createServer();
-const wss = new ws.Server({ server });
 
-wss.on('connection', (ws) => {
-    console.log('WebSocket connected');
 
-    // Handle messages from the webview
-    ws.on('message', (message) => {
-        console.log(`Received message from webview: ${message}`);
-    });
-});
-
-server.listen(3000); 
 
 
 class JavaCodeLensProvider implements vscode.CodeLensProvider {
@@ -36,8 +23,23 @@ class JavaCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     private updateJavaClasspath() {
-        // Get the classpath for the active Java project
-        const javaLanguageClient = vscode.extensions.getExtension('redhat.java')?.exports;
+        let javaLanguageClient: any;
+        
+        // Check if Red Hat Java extension is installed
+        const redHatJavaExtension = vscode.extensions.getExtension('redhat.java');
+        if (redHatJavaExtension) {
+            javaLanguageClient = redHatJavaExtension.exports;
+        }
+    
+        // If Red Hat Java extension is not found, check for Microsoft Java Extension Pack
+        if (!javaLanguageClient) {
+            const msJavaExtensionPack = vscode.extensions.getExtension('vscjava.vscode-java-pack');
+            if (msJavaExtensionPack) {
+                javaLanguageClient = msJavaExtensionPack.exports;
+            }
+        }
+    
+        // If a Java language client is found, update the classpath
         if (javaLanguageClient) {
             this.javaProjectClasspath = javaLanguageClient.getActiveJavaProjects().flatMap((project: { classpaths: any; }) =>
                 project.classpaths
@@ -111,26 +113,18 @@ function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspat
     method= methodd;
     const javaOptions = ['-jar', jarPath,  currentFilePath, '-entryPoint', method.packageName, method.name, '-vscode'];
     if(isReverse) {
-       javaOptions.push('-backward');
+      javaOptions.push('-backward');
     }
-     
 
     if (javaProjectClasspath) {
         javaOptions.push('-classpath', javaProjectClasspath);
     }
 
-    // Executing cat.jar to retrive the callgraph information
     const output = child_process.execSync(
         `java  ${javaOptions.join(' ')}`,
         { encoding: 'utf-8' }
     );
 
-    // if (panel && panel.webview && panel.dispose) {
-    //     console.log("Panel is not disposed %b", !panel.dispose() )
-    //     panel.webview.postMessage({ command: 'updateCallgraph', data: output });
-    // } else {
-        // console.log("Panel is disposed");
-        // Otherwise, create and show a new webview
         panel = vscode.window.createWebviewPanel(
             'viewCallGraph',
             'Callgraph for ' + method.name,
@@ -148,10 +142,7 @@ function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspat
     // Construct the path to your HTML file (adjust the folder and file names accordingly)
     const htmlFilePath = path.join(scriptDirectory, '../', 'index.html');
 
-    // Read the HTML file content
     const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
-
-    // Set the HTML content in the webview
     panel.webview.html = htmlContent;
 
     panel.webview.postMessage({ command: 'showCallgraph', data: output });
@@ -163,19 +154,45 @@ export function activate(context: vscode.ExtensionContext) {
         new JavaCodeLensProvider(context)
     );
     context.subscriptions.push(javaCodeLensProvider);
-    const websocketUrl = 'http://localhost:3000';
     // Listen for changes in the active text document
     vscode.workspace.onDidSaveTextDocument((document) => {
         if (vscode.window.activeTextEditor && document === vscode.window.activeTextEditor.document) {
             // Run your analysis and update the call graph view
-            updateCallGraph(context, websocketUrl);
+            updateCallGraph(context);
         }
     });
 
 
 }
 
-function updateCallGraph(context: vscode.ExtensionContext, websocketUrl: string) {
+function getJavaClasspath(): string | undefined {
+    let javaLanguageClient: any;
+
+    // Check if Red Hat Java extension is installed
+    const redHatJavaExtension = vscode.extensions.getExtension('redhat.java');
+    if (redHatJavaExtension) {
+        javaLanguageClient = redHatJavaExtension.exports;
+    }
+
+    // If Red Hat Java extension is not found, check for Microsoft Java Extension Pack
+    if (!javaLanguageClient) {
+        const msJavaExtensionPack = vscode.extensions.getExtension('vscjava.vscode-java-pack');
+        if (msJavaExtensionPack) {
+            javaLanguageClient = msJavaExtensionPack.exports;
+        }
+    }
+
+    // If a Java language client is found, return the classpath; otherwise, return undefined
+    if (javaLanguageClient) {
+        return javaLanguageClient.getActiveJavaProjects().flatMap((project: { classpaths: any; }) =>
+            project.classpaths
+        ).join(path.delimiter);
+    } else {
+        return undefined;
+    }
+}
+
+function updateCallGraph(context: vscode.ExtensionContext) {
     // Get the current file path
     const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath;
     if (!currentFilePath) {
@@ -187,11 +204,9 @@ function updateCallGraph(context: vscode.ExtensionContext, websocketUrl: string)
 
     const javaOptions = ['-jar', jarPath, currentFilePath, '-entryPoint', method.packageName, method.name, '-vscode'];
 
-    const javaLanguageClient = vscode.extensions.getExtension('redhat.java')?.exports;
-    const javaProjectClasspath = javaLanguageClient?.getActiveJavaProjects().flatMap((project: { classpaths: any; }) =>
-        project.classpaths
-    ).join(path.delimiter);
 
+    const javaProjectClasspath =  getJavaClasspath();
+    console.log(javaProjectClasspath);
     if (javaProjectClasspath) {
         javaOptions.push('-classpath', javaProjectClasspath);
     }
@@ -215,17 +230,13 @@ function updateCallGraph(context: vscode.ExtensionContext, websocketUrl: string)
 exports.activate = activate;
 
 
-function getWebviewContent(extensionPath:string, websocketUrl:string) : string {
-  try {
-    // Read the content of index.html file
+function getWebviewContent(extensionPath:string) : string {
+    try {
     const indexPath = path.join(extensionPath, 'index.html');
     let content = fs.readFileSync(indexPath, 'utf-8');
-    // content = content.replace('{{websocketUrl}}', websocketUrl);
-
     return content;
-  } catch (error) {
+    } catch (error) {
     console.error(`Error reading files: ${error}`);
     return `<html><body>Error reading files</body></html>`;
-  }
-  
+    }
 }
