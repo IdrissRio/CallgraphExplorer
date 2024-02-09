@@ -1,7 +1,7 @@
 {
-  "name": "cats",
+  "name": "cat",
   "displayName": "CAT",
-  "description": "CAT (CallGraph Analysis Tool) is a Java tool that constructs call graphs based on Class Hierarchy Analaysis and a variant of Rapid Type Analysis. It uses JastAdd and reference attribute grammars for its implementation. CAT also uses some API provided by the ExtendJ Java compiler to compute the call graph.",
+  "description": "Callgraph Analysis Tool: A tool to visualize and explore callgraphs of Java projects",
   "version": "0.0.1",
   "author": "Idriss Riouak",
   "license": "EPL-2.0",
@@ -9,15 +9,34 @@
     "type": "git",
     "url": "https://github.com/IdrissRio/CallgraphExplorer"
   },
+  "homepage": "https://github.com/IdrissRio/CallgraphExplorer",
+
+  
+  "icon": "resources/logo.jpg",
   "publisher": "IdrissRiouak",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Programming Languages",
+    "Debuggers",
     "Other"
   ],
+  
   "activationEvents": [
-    "onLanguage:java"
+    "onLanguage:java",
+    "workspaceContains:pom.xml",
+    "workspaceContains:*/pom.xml",
+    "workspaceContains:build.gradle",
+    "workspaceContains:*/build.gradle",
+    "workspaceContains:settings.gradle",
+    "workspaceContains:*/settings.gradle",
+    "workspaceContains:build.gradle.kts",
+    "workspaceContains:*/build.gradle.kts",
+    "workspaceContains:settings.gradle.kts",
+    "workspaceContains:*/settings.gradle.kts",
+    "workspaceContains:.classpath",
+    "workspaceContains:*/.classpath"
   ],
   "main": "./dist/extension.js",
   "languages": [
