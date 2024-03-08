@@ -1,74 +1,20 @@
-# CAT - CallGraph Analysis Tool
+# CAT - Callgraph Explorer
 
 <p align="center">
   <img width="300"  src="https://github.com/IdrissRio/CallgraphExplorer/blob/5dec749e56944ea969016e4ab031496ee9898bfc/resources/logo.jpg?raw=true">
 </p>
 
-CAT (CallGraph Analysis Tool) is a Java tool that constructs call graphs based 
-on Class Hierarchy Analaysis. It uses JastAdd and reference attribute 
-grammars for its implementation. CAT also uses some API provided by the ExtendJ Java 
-compiler to compute the call graph.
+CAT (CallGraph Analysis Tool): Callgraph Explore is an interactive tool for visualising call graphs of Java programs directly in VSCode. 
 
-## Table of Contents
+CAT will look for all the methods in your open Java file. You can then select a method and CAT will open a new tab with the call graph of the selected method.
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Examples](#examples)
-- [Contributing](#contributing)
-- [License](#license)
+## Forward and Bacward Callgraph Construction
+CAT allows you to construct both forward and backward call graphs. 
+The forward call graph is a graph that shows the methods that are called by the selected method. 
+The backward call graph is a graph that shows the methods that call the selected method.
 
-## Introduction
 
-CAT is designed to compute the call graphs of Java programs.
-By using CHA, CAT generates call graphs where nodes are methods and edges are 
-method calls. CAT also provides a web-based visualisation tool to visualise the generated call graphs in 
-the browser.
 
-## Features
-
-- **Call Graph Generation**: CAT generates call graphs for Java programs using Class Hierarchy Analysis techniques.
-- **Web-based Visualisation**: CAT provides a web-based visualisation tool to visualise the generated call graphs.
-- **Command-line Interface**: CAT provides a command-line interface to generate call graphs for Java programs.
-- **JSON Output**: CAT outputs the generated call graphs in JSON format.
-
-## Installation
-
-1. Clone the repository.
-```bash
-git clone https://github.com/IdrissRio/cat
-```
-
-2. Naviate to the cloned repository.
-```bash
-cd cat
-```
-
-3. Download submodules.
-```bash
-git submodule update --init --recursive
-```
-
-4. Build the project.
-```bash
-./gradlew build
-```
-
-## Usage
-
-CAT is designed to be user-friendly and easy to use. Here's how you can use it:
-
-1. Generate a call graph for a Java program.
-```bash
-java -jar cat.jar <path-to-java-program> -o <output-file> -entryPoint <package-name>.<class-name> <method-name>
-```
-
-2. Visualise the generated call graph.
-```bash
-java -jar cat.jar <path-to-java-program> -visualise -entryPoint <package-name>.<class-name> <method-name>
-```
-Navigate to `http://localhost:8080` to view the visualisation.
 
 ## Examples
 
