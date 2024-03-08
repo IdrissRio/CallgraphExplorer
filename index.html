@@ -253,12 +253,7 @@
                 <input type="text" id="searchInput" placeholder="Enter Node ID">
                 <button id="searchButton">Search</button>
             </div>
-            <div class="menu-item">
-                <input type="radio" id="showNonCachableAttributes" name="showAttributes" value="nonCachable">
-                <label for="showNonCachableAttributes">Show Non Cachable Attributes</label>
-                <input type="radio" id="showHeatmap" name="showAttributes" value="heatmap">
-                <label for="showHeatmap">Show Heatmap</label>
-            </div>
+
 
             <div class="menu-item">
                 <select id="layoutDropdown">
@@ -300,18 +295,9 @@
                     <span id="kindCollectionNodeCount">0</span>
                 </div>
                 <div class="statistic">
-                    <span class="statistic-label">Number of "bridge" Nodes:</span>
-                    <span id="kindBridgeNodeCount">0</span>
-                </div>
-                <div class="statistic">
                     <span class="statistic-label">Number of "method" Nodes:</span>
                     <span id="kindMethodNodeCount">0</span>
                 </div>
-            </div>
-            <div class="input-section">
-                <h2>Upload JSON File</h2>
-                <input type="file" id="jsonFileInput">
-                <div id="indicator"></div>
             </div>
             <div id="legend" class="legend-container">
                 <div class="legend-label">Legend</div>
@@ -383,15 +369,6 @@
                         "border-width": "2px",
                         "border-style": "solid"
                     }
-                }, {
-                    selector: ".bridge",
-                    style: {
-                        "background-color": "rgb(222, 2, 196)",
-                        "color": "white",
-                        "border-color": "rgb(222, 2, 196)",
-                        "border-width": "2px",
-                        "border-style": "solid"
-                    }
                 },
                 {
                     selector: "edge",
@@ -406,7 +383,8 @@
                 }, {
                     selector: ".highlighted",
                     style: {
-                        "border-color": "rgba(124, 166, 104, 0.9)",
+                        "border-color": "rgb(205, 44, 108)",
+                        "background-color": "rgb(247, 233, 135)",
                         "border-width": "2px",
                         "border-style": "solid"
                     }
@@ -420,71 +398,27 @@
         });
 
         searchButton.addEventListener("click", () => {
-            const nodeIdToSearch = searchInput.value.trim();
+            const nodeIdToSearch = searchInput.value.trim().toLowerCase(); // Convert to lower case for case-insensitive search
             if (nodeIdToSearch) {
-                const nodeToHighlight = cy.$(`[id="${nodeIdToSearch}"]`);
-                if (nodeToHighlight.length > 0) {
-                    cy.elements().removeClass("highlighted");
-                    nodeToHighlight.addClass("highlighted");
-                    cy.center(nodeToHighlight);
+                // Use a function to filter nodes based on partial match with the nodeIdToSearch
+                const nodesToHighlight = cy.nodes().filter((node) => {
+                    // Assuming 'id' is the field you're matching against
+                    return node.id().toLowerCase().includes(nodeIdToSearch);
+        });
+
+                if (nodesToHighlight.length > 0) {
+                    cy.elements().removeClass("highlighted"); // Remove existing highlights
+                    nodesToHighlight.addClass("highlighted"); // Highlight matching nodes
+                    cy.center(nodesToHighlight); // Center the view on the highlighted nodes
+                } else {
+                    // Optionally, handle the case where no nodes match the search
+                    console.log("No nodes found matching the search criteria");
                 }
             }
         });
 
-        const showNonCachableAttributesRadio = document.getElementById("showNonCachableAttributes");
-        showNonCachableAttributesRadio.addEventListener("change", () => {
-            if (showNonCachableAttributesRadio.checked) {
-                // Loop through nodes to determine if they are circular
-                cy.nodes().forEach(node => {
-                    const sccId = node.data("sccId");
-                    const hasSelfLoop = node.edgesWith(node).length > 0;
-                    if (sccNodesMap.get(sccId).length > 1 || hasSelfLoop) {
 
-                        node.addClass("circular");
-                    }
-                });
-            } else {
-                // Remove circular class from all nodes
-                cy.nodes().removeClass("circular");
-            }
-        });
-        const showHeatmapRadio = document.getElementById("showHeatmap");
-        showHeatmapRadio.addEventListener("change", () => {
-            if (showHeatmapRadio.checked) {
-                // Find the maximum evaluation value among all nodes
-                let maxEvaluation = 0;
-                cy.nodes().forEach(node => {
-                    const evaluation = node.data("evaluation");
-                    if (evaluation == 0) {
-                        node.addClass("hidden");
-                    }
-                    if (evaluation > maxEvaluation) {
-                        maxEvaluation = evaluation;
-                    }
-                });
 
-                // Define a color scale for the heatmap
-                const colorScale = chroma.scale(['white', 'green', 'yellow', 'red']).domain([0, maxEvaluation]);
-
-                // Apply heatmap styling to nodes based on evaluation values
-                cy.nodes().forEach(node => {
-                    const evaluation = node.data("evaluation");
-
-                    const color = colorScale(evaluation).hex();
-                    node.style({
-                        "background-color": color
-                    });
-
-                });
-            } else {
-                // Reset styles when heatmap is unchecked
-                cy.nodes().forEach(node => {
-                    node.style({
-                        "background-color": "" // Reset background color
-                    });
-                });
-            }
-        });
 
                                 const sccNodesMap = new Map();
 
@@ -647,7 +581,6 @@
                     "circular": 0,
                     "collection": 0,
                     "method": 0,
-                    "bridge": 0
                 };
 
                 callgraphData.nodes.forEach(node => {
@@ -662,7 +595,6 @@
                 document.getElementById("kindInhNodeCount").textContent = kindCounts["inh"];
                 document.getElementById("kindCircularNodeCount").textContent = kindCounts["circular"];
                 document.getElementById("kindCollectionNodeCount").textContent = kindCounts["collection"];
-                document.getElementById("kindBridgeNodeCount").textContent = kindCounts["bridge"];
                 document.getElementById("kindMethodNodeCount").textContent = kindCounts["method"];
 
 
@@ -713,34 +645,7 @@
 
             tooltip.innerHTML = tooltipContent;
 
-            if (node.data("histogram")) {
-                tooltip.innerHTML += '<canvas id="histogramChart" width="600" height="400"></canvas>';
-                const histogramData = node.data("histogram");
 
-                const canvas = document.getElementById("histogramChart");
-                const ctx = canvas.getContext("2d");
-
-                new Chart(ctx, {
-                    type: "bar",
-                    data: {
-                        labels: Object.keys(histogramData),
-                        datasets: [{
-                            data: Object.values(histogramData),
-                            backgroundColor: "rgba(75, 192, 192, 0.2)",
-                            borderColor: "rgba(75, 192, 192, 1)",
-                            borderWidth: 1,
-                            label: 'COMPUTE_BEGIN',
-                        }]
-                    },
-                    options: {
-                        scales: {
-                            y: {
-                                beginAtZero: true
-                            }
-                        }
-                    }
-                });
-            }
 
 
 
@@ -905,79 +810,21 @@
                     });
                 }
             }
-            const layoutOptions = {
-                name: "breadthfirst",
-                animate: true,
-                animationDuration: 500,
-                spacingFactor: 1.5,
-                roots: `#${clickedNode.id()}`,
-                boundingBox: {
-                    x1: 0,
-                    y1: 0,
-                    x2: cy.width(),
-                    y2: cy.height(),
-                },
-            };
-            cy.layout(layoutOptions).run();
+            // const layoutOptions = {
+            //     name: "breadthfirst",
+            //     animate: true,
+            //     animationDuration: 500,
+            //     spacingFactor: 1.5,
+            //     roots: `#${clickedNode.id()}`,
+            //     boundingBox: {
+            //         x1: 0,
+            //         y1: 0,
+            //         x2: cy.width(),
+            //         y2: cy.height(),
+            //     },
+            // };
+            // cy.layout(layoutOptions).run();
         });
-
-        const jsonFileInput = document.getElementById("jsonFileInput");
-        const indicator = document.getElementById("indicator");
-
-        jsonFileInput.addEventListener("change", event => {
-            const file = event.target.files[0];
-
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                    try {
-                        const jsonContent = event.target.result;
-                        const data = JSON.parse(jsonContent);
-
-                        // Process the JSON data and update the graph nodes
-                        updateGraphFromJSON(data);
-
-                        indicator.innerHTML = '&#x2713;'; // Checkmark Unicode escape sequence
-                        indicator.style.color = "green";
-                    } catch (error) {
-                        console.error("Error parsing JSON:", error);
-                        indicator.innerHTML = '&#x2717;'; // Crossmark Unicode escape sequence
-                        indicator.style.color = "red";
-                    }
-                };
-                reader.readAsText(file);
-            }
-        });
-        function updateGraphFromJSON(data) {
-            // Loop through the JSON data and update the graph nodes
-            // Assuming cy is your graph instance
-            for (const methodName in data) {
-                if (data.hasOwnProperty(methodName)) {
-                    const evaluationData = data[methodName];
-                    const node = cy.$(`[id="${methodName}"]`);
-
-                    if (node !== undefined) {
-                        const histogramData = {};
-
-                        for (const key in evaluationData) {
-                            if (key === "total") {
-                                // Update the total value
-                                const totalValue = evaluationData[key];
-                                node.data("evaluation", totalValue);
-                            } else {
-                                // Update other evaluation values
-                                const intValue = parseInt(evaluationData[key]);
-                                if (!isNaN(intValue)) {
-                                    histogramData[key] = intValue;
-                                }
-                            }
-                        }
-
-                        node.data("histogram", histogramData);
-                    }
-                }
-            }
-        }
 
 
 
@@ -989,8 +836,7 @@
             { type: "entry-point", label: "Entry Point", color: "rgb(205, 44, 108)" },
             { type: "collection", label: "Collection", borderColor: "red" },
             { type: "method", label: "Method", color: "rgb(255,255,255)" },
-            { type: "circular", label: "Circular", color: "rgb(178, 6, 0)", borderColor: "rgb(178, 6, 0)" },
-            { type: "bridge", label: "Bridge", color: "rgb(222, 2, 196)", borderColor: "rgb(222, 2, 196)" }
+            { type: "circular", label: "Circular", color: "rgb(178, 6, 0)", borderColor: "rgb(178, 6, 0)" }
         ];
 
         // Add the legend elements to the "legend" container
