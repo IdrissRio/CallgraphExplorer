@@ -120,6 +120,10 @@ function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspat
             { encoding: 'utf-8' }
         );
 
+        // Get the extension's root directory
+        const scriptDirectory = path.dirname(__filename);
+        const extensionPath = path.join(scriptDirectory, '..');
+
         panel = vscode.window.createWebviewPanel(
             'viewCallGraph',
             'Callgraph for ' + method.name,
@@ -127,16 +131,24 @@ function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspat
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'resources'))]
             }
         );
 
-        // Get the directory of the current script file
-        const scriptDirectory = path.dirname(__filename);
+        // Generate webview URIs for local resources
+        const stylesUri = panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(extensionPath, 'resources', 'styles.css'))
+        );
+        const scriptUri = panel.webview.asWebviewUri(
+            vscode.Uri.file(path.join(extensionPath, 'resources', 'main.js'))
+        );
 
-        // Construct the path to the HTML file
-        const htmlFilePath = path.join(scriptDirectory, '../', 'index.html');
+        // Get HTML content and replace resource paths with webview URIs
+        const htmlFilePath = path.join(extensionPath, 'index.html');
+        let htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+        htmlContent = htmlContent.replace('resources/styles.css', stylesUri.toString());
+        htmlContent = htmlContent.replace('resources/main.js', scriptUri.toString());
 
-        const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
         panel.webview.html = htmlContent;
 
         panel.webview.postMessage({ command: 'showCallgraph', data: output });
