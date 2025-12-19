@@ -8,6 +8,32 @@ CAT (CallGraph Analysis Tool): Callgraph Explore is an interactive tool for visu
 
 CAT will look for all the methods in your open Java file. You can then select a method and CAT will open a new tab with the call graph of the selected method.
 
+## Building from Source
+
+This extension uses the [CAT](https://github.com/IdrissRio/cat) tool as a git submodule. To build:
+
+1. Clone the repository with submodules:
+   ```bash
+   git clone --recursive https://github.com/IdrissRio/CallgraphExplorer.git
+   cd CallgraphExplorer
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the CAT JAR and extension:
+   ```bash
+   npm run build-cat   # Build the CAT tool from source
+   npm run compile     # Build the extension
+   ```
+
+### Requirements
+- Node.js and npm
+- Java 8+ (for building and running CAT)
+- Gradle (bundled with the CAT submodule)
+
 ## Forward and Bacward Callgraph Construction
 CAT allows you to construct both forward and backward call graphs. 
 The forward call graph is a graph that shows the methods that are called by the selected method. 
