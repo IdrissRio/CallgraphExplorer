@@ -29,48 +29,45 @@ class JavaCodeLensProvider implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const currentFilePath = document.uri.fsPath;
         const jarPath = path.join(this.context.extensionPath, 'cat.jar');
-        const javaOptions = ['-jar', jarPath, '-allMethods', currentFilePath, '-vscode'];
+        const javaOptions = ['-jar', jarPath, '-allMethods', currentFilePath];
         if (this.javaProjectClasspath) {
             javaOptions.push('-classpath', this.javaProjectClasspath);
         }
 
-        // Executing cat.jar to retrieve all the methods in the current open file.
-        const output = child_process.execSync(
-            `java  ${javaOptions.join(' ')}`,
-            { encoding: 'utf-8' }
-        );
-
-        const methodDeclarations = JSON.parse(output);
-
-        const codeLenses: vscode.CodeLens[] = methodDeclarations.methods.flatMap((methodd: any) => {
-            const startLine = Number(methodd.lineStart) - 1;
-            const range = new vscode.Range(
-                new vscode.Position(startLine, 0),
-                new vscode.Position(startLine, Number.MAX_VALUE)
+        try {
+            // Executing cat.jar to retrieve all the methods in the current open file.
+            const output = child_process.execSync(
+                `java  ${javaOptions.join(' ')}`,
+                { encoding: 'utf-8' }
             );
 
-            const viewCallgraphLens = new vscode.CodeLens(
-                range,
-                {
-                    title: 'Forward Callgraph',
-                    command: 'cat.viewCallGraph',
-                    arguments: [methodd, jarPath, this.javaProjectClasspath, currentFilePath, false],
-                }
-            );
+            // The output is a JSON array directly (not wrapped in {methods: ...})
+            const methodDeclarations = JSON.parse(output);
 
-            const viewReverseCallgraphLens = new vscode.CodeLens(
-                range,
-                {
-                    title: 'Backwards Callgraph',
-                    command: 'cat.viewCallGraph',
-                    arguments: [methodd, jarPath, this.javaProjectClasspath, currentFilePath, true],
-                }
-            );
+            const codeLenses: vscode.CodeLens[] = methodDeclarations.flatMap((methodd: any) => {
+                const startLine = Number(methodd.lineStart) - 1;
+                const range = new vscode.Range(
+                    new vscode.Position(startLine, 0),
+                    new vscode.Position(startLine, Number.MAX_VALUE)
+                );
 
-            return [viewCallgraphLens, viewReverseCallgraphLens];
-        });
+                const viewCallgraphLens = new vscode.CodeLens(
+                    range,
+                    {
+                        title: '$(type-hierarchy) Callgraph',
+                        command: 'cat.viewCallGraph',
+                        arguments: [methodd, jarPath, this.javaProjectClasspath, currentFilePath],
+                    }
+                );
 
-        return codeLenses;
+                return [viewCallgraphLens];
+            });
+
+            return codeLenses;
+        } catch (error) {
+            console.error('Error executing CAT:', error);
+            return [];
+        }
     }
 
     resolveCodeLens?(codeLens: vscode.CodeLens, token: vscode.CancellationToken): vscode.CodeLens | Thenable<vscode.CodeLens> {
@@ -109,44 +106,44 @@ function getJavaClasspath(context: vscode.ExtensionContext): string | undefined 
 
 vscode.commands.registerCommand('cat.viewCallGraph', viewCallGraphHandler);
 
-function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspath: string | undefined, currentFilePath: string, isReverse: boolean) {
-    method= methodd;
-    const javaOptions = ['-jar', jarPath,  currentFilePath, '-entryPoint', method.packageName, method.name, '-vscode'];
-    if(isReverse) {
-      javaOptions.push('-backward');
-    }
+function viewCallGraphHandler(methodd: any, jarPath: string, javaProjectClasspath: string | undefined, currentFilePath: string) {
+    method = methodd;
+    const javaOptions = ['-jar', jarPath, currentFilePath, '-entryPoint', method.packageName, method.name];
 
     if (javaProjectClasspath) {
         javaOptions.push('-classpath', javaProjectClasspath);
     }
 
-    const output = child_process.execSync(
-        `java  ${javaOptions.join(' ')}`,
-        { encoding: 'utf-8' }
-    );
+    try {
+        const output = child_process.execSync(
+            `java  ${javaOptions.join(' ')}`,
+            { encoding: 'utf-8' }
+        );
 
         panel = vscode.window.createWebviewPanel(
             'viewCallGraph',
             'Callgraph for ' + method.name,
             vscode.ViewColumn.Beside,
             {
-                enableScripts: true, // Enable scripts in the webview
-                retainContextWhenHidden: true, // Retain the webview content when it's hidden
+                enableScripts: true,
+                retainContextWhenHidden: true,
             }
         );
-    // }
 
-    //` Get the directory of the current script file
-    const scriptDirectory = path.dirname(__filename);
+        // Get the directory of the current script file
+        const scriptDirectory = path.dirname(__filename);
 
-    // Construct the path to your HTML file (adjust the folder and file names accordingly)
-    const htmlFilePath = path.join(scriptDirectory, '../', 'index.html');
+        // Construct the path to the HTML file
+        const htmlFilePath = path.join(scriptDirectory, '../', 'index.html');
 
-    const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
-    panel.webview.html = htmlContent;
+        const htmlContent = fs.readFileSync(htmlFilePath, 'utf-8');
+        panel.webview.html = htmlContent;
 
-    panel.webview.postMessage({ command: 'showCallgraph', data: output });
+        panel.webview.postMessage({ command: 'showCallgraph', data: output });
+    } catch (error) {
+        vscode.window.showErrorMessage('Error generating callgraph: ' + error);
     }
+}
 
 export function activate(context: vscode.ExtensionContext) {
     const javaCodeLensProvider = vscode.languages.registerCodeLensProvider(
@@ -168,36 +165,33 @@ export function activate(context: vscode.ExtensionContext) {
 function updateCallGraph(context: vscode.ExtensionContext) {
     // Get the current file path
     const currentFilePath = vscode.window.activeTextEditor?.document.uri.fsPath;
-    if (!currentFilePath) {
+    if (!currentFilePath || !method) {
         return;
     }
 
     // Use the child_process module to run the cat.jar and capture its output
     const jarPath = path.join(context.extensionPath, 'cat.jar');
 
-    const javaOptions = ['-jar', jarPath, currentFilePath, '-entryPoint', method.packageName, method.name, '-vscode'];
+    const javaOptions = ['-jar', jarPath, currentFilePath, '-entryPoint', method.packageName, method.name];
 
-
-    const javaProjectClasspath =  getJavaClasspath(context);
-    console.log(javaProjectClasspath);
+    const javaProjectClasspath = getJavaClasspath(context);
     if (javaProjectClasspath) {
         javaOptions.push('-classpath', javaProjectClasspath);
     }
 
-    console.log("Running: " + javaOptions.join(' ') + " in " + process.cwd());
+    try {
+        // Execute the cat.jar with the specified options and the classpath
+        const output = child_process.execSync(
+            `java  ${javaOptions.join(' ')}`,
+            { encoding: 'utf-8' }
+        );
 
-    // Execute the cat.jar with the specified options and the classpath
-    const output = child_process.execSync(
-        `java  ${javaOptions.join(' ')}`,
-        { encoding: 'utf-8' }
-    );
-
-    console.log(output);
-
-    if (panel && panel.webview) {
-        console.log(!panel.dispose)
-        panel.webview.postMessage({ command: 'updateCallgraph', data: output });
-    } 
+        if (panel && panel.webview) {
+            panel.webview.postMessage({ command: 'updateCallgraph', data: output });
+        }
+    } catch (error) {
+        console.error('Error updating callgraph:', error);
+    }
 }
 
 exports.activate = activate;
