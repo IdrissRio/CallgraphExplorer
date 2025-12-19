@@ -5,3 +5,6 @@ node_modules
 *.vsix
 src/extension.js
 src/extension.js.map
+
+# Generated CAT JAR (built from submodule)
+cat.jar
