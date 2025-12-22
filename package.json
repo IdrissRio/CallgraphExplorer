@@ -2,7 +2,7 @@
   "name": "callgraphexplorer",
   "displayName": "CAT: Callgraph Analysis Tool",
   "description": "Callgraph Analysis Tool: A tool to visualize and explore callgraphs of Java projects",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "author": "Idriss Riouak",
   "license": "EPL-2.0",
   "repository": {

@@ -1,14 +1,34 @@
+# Development directories
 .vscode/**
 .vscode-test/**
 out/**
 node_modules/**
 src/**
+
+# CAT submodule source (only cat.jar is needed)
+cat/**
+
+# Test files
+testfiles/**
+
+# Git files
+.git/**
+.github/**
 .gitignore
-.yarnrc
+.gitmodules
+
+# Config files
 webpack.config.js
 vsc-extension-quickstart.md
+compile.sh
+.yarnrc
 **/tsconfig.json
 **/.eslintrc.json
+
+# Source maps and TypeScript source
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# Generated packages
+*.vsix
