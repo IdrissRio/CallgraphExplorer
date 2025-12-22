@@ -4,14 +4,22 @@
  */
 
 // ===== Constants =====
+// Standard node types
 const NODE_TYPES = [
-    { type: 'syn', label: 'Synthesized', color: '#00d4ff', icon: 'fa-arrow-up' },
-    { type: 'inh', label: 'Inherited', color: '#ffbe0b', icon: 'fa-arrow-down' },
     { type: 'entry-point', label: 'Entry Point', color: '#ff006e', icon: 'fa-play' },
-    { type: 'collection', label: 'Collection', color: '#7b2cbf', icon: 'fa-layer-group' },
     { type: 'method', label: 'Method', color: '#ffffff', icon: 'fa-code' },
     { type: 'circular', label: 'Circular', color: '#ff4444', icon: 'fa-sync' }
 ];
+
+// Experimental RAG-related node types
+const RAG_NODE_TYPES = [
+    { type: 'syn', label: 'Synthesized', color: '#00d4ff', icon: 'fa-arrow-up' },
+    { type: 'inh', label: 'Inherited', color: '#ffbe0b', icon: 'fa-arrow-down' },
+    { type: 'collection', label: 'Collection', color: '#7b2cbf', icon: 'fa-layer-group' }
+];
+
+// Combined for internal use
+const ALL_NODE_TYPES = [...NODE_TYPES, ...RAG_NODE_TYPES];
 
 const LAYOUTS = [
     { id: 'cose', name: 'Force', icon: 'fa-atom' },
@@ -20,6 +28,13 @@ const LAYOUTS = [
     { id: 'circle', name: 'Circle', icon: 'fa-circle-notch' },
     { id: 'grid', name: 'Grid', icon: 'fa-th' },
     { id: 'cola', name: 'Cola', icon: 'fa-project-diagram' }
+];
+
+const GRANULARITY_LEVELS = [
+    { id: 'method', name: 'Method', icon: 'fa-code', desc: 'Individual methods' },
+    { id: 'class', name: 'Class', icon: 'fa-cube', desc: 'Group by class' },
+    { id: 'compilation-unit', name: 'File', icon: 'fa-file-code', desc: 'Group by file' },
+    { id: 'package', name: 'Package', icon: 'fa-folder', desc: 'Group by package' }
 ];
 
 const KEYBOARD_SHORTCUTS = [
@@ -159,6 +174,45 @@ const CYTOSCAPE_STYLES = [
         style: {
             'display': 'none'
         }
+    },
+    // Compound node styles (for granularity grouping)
+    {
+        selector: ':parent',
+        style: {
+            'background-opacity': 0.15,
+            'border-width': '2px',
+            'border-style': 'dashed',
+            'padding': '20px',
+            'text-valign': 'top',
+            'text-halign': 'center',
+            'text-margin-y': '-10px',
+            'font-size': '12px',
+            'font-weight': '600'
+        }
+    },
+    {
+        selector: '.package-node',
+        style: {
+            'background-color': 'rgba(123, 44, 191, 0.2)',
+            'border-color': '#7b2cbf',
+            'color': '#7b2cbf'
+        }
+    },
+    {
+        selector: '.compilation-unit-node',
+        style: {
+            'background-color': 'rgba(0, 212, 255, 0.2)',
+            'border-color': '#00d4ff',
+            'color': '#00d4ff'
+        }
+    },
+    {
+        selector: '.class-node',
+        style: {
+            'background-color': 'rgba(255, 190, 11, 0.2)',
+            'border-color': '#ffbe0b',
+            'color': '#ffbe0b'
+        }
     }
 ];
 
@@ -168,6 +222,9 @@ const state = {
     selectedNode: null,
     mode: 'reachability', // 'reachability' or 'scc'
     currentLayout: 'cose',
+    granularity: 'method', // 'method', 'class', 'compilation-unit', 'package'
+    rawData: null, // Store original graph data for re-aggregation
+    showRagFilters: false, // Toggle for experimental RAG filters
     filters: {
         syn: true,
         inh: true,
@@ -176,6 +233,7 @@ const state = {
         method: true,
         circular: true
     },
+    // Node type counts
     counts: {
         nodes: 0,
         edges: 0,
@@ -183,7 +241,25 @@ const state = {
         inh: 0,
         circular: 0,
         collection: 0,
-        method: 0
+        method: 0,
+        'entry-point': 0
+    },
+    // Program structure statistics
+    stats: {
+        packages: 0,
+        compilationUnits: 0,
+        classes: 0,
+        methods: 0,
+        edges: 0,
+        sccs: 0,
+        maxSccSize: 0,
+        avgDegree: 0,
+        maxInDegree: 0,
+        maxOutDegree: 0,
+        density: 0,
+        entryPoints: 0,
+        leafNodes: 0,
+        rootNodes: 0
     },
     sidebarOpen: false,
     minimapVisible: false,
@@ -248,6 +324,7 @@ function initCytoscape() {
 
 function initUI() {
     renderLayoutOptions();
+    renderGranularityOptions();
     renderFilterList();
     renderLegend();
     updateStats();
@@ -361,6 +438,33 @@ function loadInitialData() {
 
 // ===== Graph Operations =====
 function loadGraph(data) {
+    // Store raw data for re-aggregation when granularity changes
+    state.rawData = JSON.parse(JSON.stringify(data));
+    state.sccNodesMap.clear();
+    
+    // Build the graph with current granularity
+    buildGraphWithGranularity(data);
+    
+    // Apply layout
+    applyLayout('cose');
+    
+    // Update stats
+    updateStatsFromData(data);
+}
+
+function buildGraphWithGranularity(data) {
+    cy.elements().remove();
+    
+    if (state.granularity === 'method') {
+        // Original behavior: individual method nodes
+        buildMethodLevelGraph(data);
+    } else {
+        // Aggregated view with compound nodes
+        buildAggregatedGraph(data, state.granularity);
+    }
+}
+
+function buildMethodLevelGraph(data) {
     cy.batch(() => {
         // Add nodes
         data.nodes.forEach(node => {
@@ -401,15 +505,212 @@ function loadGraph(data) {
             });
         });
     });
+}
 
-    // Apply layout
-    applyLayout('cose');
+function buildAggregatedGraph(data, granularity) {
+    cy.batch(() => {
+        // Maps to track parent nodes and aggregated edges
+        const parentNodes = new Map();
+        const nodeToParent = new Map();
+        const aggregatedEdges = new Map();
+        
+        // First pass: determine parent for each node
+        data.nodes.forEach(node => {
+            const parentId = getParentId(node.methodName, granularity);
+            nodeToParent.set(node.methodName, parentId);
+            
+            if (!parentNodes.has(parentId)) {
+                parentNodes.set(parentId, {
+                    id: parentId,
+                    label: getParentLabel(parentId, granularity),
+                    children: [],
+                    granularity: granularity
+                });
+            }
+            parentNodes.get(parentId).children.push(node);
+        });
+        
+        // Add parent (compound) nodes first
+        parentNodes.forEach((parent, parentId) => {
+            const nodeClass = getGranularityClass(granularity);
+            cy.add({
+                data: {
+                    id: parentId,
+                    label: parent.label,
+                    isParent: true,
+                    childCount: parent.children.length,
+                    granularity: granularity
+                },
+                classes: nodeClass
+            });
+        });
+        
+        // Add child nodes with parent reference
+        data.nodes.forEach(node => {
+            const sccId = node.sccId;
+            if (!state.sccNodesMap.has(sccId)) {
+                state.sccNodesMap.set(sccId, []);
+            }
+            state.sccNodesMap.get(sccId).push(node.methodName);
+            
+            const parentId = nodeToParent.get(node.methodName);
+            
+            cy.add({
+                data: {
+                    id: node.methodName,
+                    label: getShortName(node.methodName),
+                    fullName: node.methodName,
+                    sccId: node.sccId,
+                    kind: node.kind,
+                    path: node.path,
+                    parent: parentId,
+                    evaluation: 0
+                }
+            });
+            
+            // Apply node type classes
+            if (Array.isArray(node.kind)) {
+                node.kind.forEach(k => cy.$id(node.methodName).addClass(k));
+            } else if (node.kind) {
+                cy.$id(node.methodName).addClass(node.kind);
+            }
+        });
+        
+        // Add edges (both intra-cluster and inter-cluster)
+        data.edges.forEach(edge => {
+            cy.add({
+                data: {
+                    id: `${edge.source}->${edge.target}`,
+                    source: edge.source,
+                    target: edge.target
+                }
+            });
+        });
+    });
+}
+
+// Parse a method name to extract package, compilation unit, class, and method
+function parseMethodName(methodName) {
+    // Typical format: com.package.ClassName.methodName(params)
+    // or: com.package.OuterClass$InnerClass.methodName(params)
     
-    // Update stats
-    updateStatsFromData(data);
+    const parenIdx = methodName.indexOf('(');
+    const nameWithoutParams = parenIdx > 0 ? methodName.substring(0, parenIdx) : methodName;
+    const parts = nameWithoutParams.split('.');
+    
+    if (parts.length < 2) {
+        return {
+            package: 'default',
+            compilationUnit: methodName,
+            className: methodName,
+            methodName: methodName
+        };
+    }
+    
+    const methodPart = parts.pop();
+    const classOrInner = parts.pop();
+    
+    // Handle inner classes (ClassName$InnerClass)
+    const classMatch = classOrInner.match(/^([^$]+)/);
+    const outerClassName = classMatch ? classMatch[1] : classOrInner;
+    
+    const packageParts = parts;
+    const packageName = packageParts.length > 0 ? packageParts.join('.') : 'default';
+    const compilationUnit = packageName + '.' + outerClassName;
+    
+    return {
+        package: packageName,
+        compilationUnit: compilationUnit,
+        className: packageName + '.' + classOrInner,
+        methodName: methodName
+    };
+}
+
+function getParentId(methodName, granularity) {
+    const parsed = parseMethodName(methodName);
+    
+    switch (granularity) {
+        case 'package':
+            return `pkg:${parsed.package}`;
+        case 'compilation-unit':
+            return `cu:${parsed.compilationUnit}`;
+        case 'class':
+            return `cls:${parsed.className}`;
+        default:
+            return methodName;
+    }
+}
+
+function getParentLabel(parentId, granularity) {
+    // Remove the prefix (pkg:, cu:, cls:)
+    const colonIdx = parentId.indexOf(':');
+    const name = colonIdx > 0 ? parentId.substring(colonIdx + 1) : parentId;
+    
+    // For display, show just the last meaningful part
+    const parts = name.split('.');
+    switch (granularity) {
+        case 'package':
+            return name === 'default' ? 'default' : parts.slice(-2).join('.');
+        case 'compilation-unit':
+        case 'class':
+            return parts[parts.length - 1];
+        default:
+            return name;
+    }
+}
+
+function getGranularityClass(granularity) {
+    switch (granularity) {
+        case 'package':
+            return 'package-node';
+        case 'compilation-unit':
+            return 'compilation-unit-node';
+        case 'class':
+            return 'class-node';
+        default:
+            return '';
+    }
+}
+
+function setGranularity(granularity) {
+    if (state.granularity === granularity) return;
+    
+    state.granularity = granularity;
+    updateActiveGranularity();
+    
+    if (state.rawData) {
+        console.log('Changing granularity to:', granularity, 'with', state.rawData.nodes.length, 'nodes');
+        state.sccNodesMap.clear();
+        buildGraphWithGranularity(state.rawData);
+        applyLayout(state.currentLayout);
+        showNotification(`View: ${GRANULARITY_LEVELS.find(l => l.id === granularity)?.name || granularity}`, 'info');
+    } else {
+        console.log('No rawData available for granularity change');
+    }
 }
 
 function updateGraph(data, isFullRefresh) {
+    // Store raw data for re-aggregation when granularity changes
+    state.rawData = JSON.parse(JSON.stringify(data));
+    state.sccNodesMap.clear();
+    
+    if (isFullRefresh) {
+        // Full refresh: rebuild with current granularity
+        buildGraphWithGranularity(data);
+        applyLayout('cose');
+        updateStatsFromData(data);
+        return;
+    }
+    
+    // Incremental update (only for method-level granularity)
+    if (state.granularity !== 'method') {
+        // For aggregated views, do a full rebuild
+        buildGraphWithGranularity(data);
+        applyLayout(state.currentLayout);
+        updateStatsFromData(data);
+        return;
+    }
+    
     cy.batch(() => {
         const newNodeIds = new Set(data.nodes.map(n => n.methodName));
         const newEdgeIds = new Set(data.edges.map(e => `${e.source}->${e.target}`));
@@ -460,10 +761,6 @@ function updateGraph(data, isFullRefresh) {
             }
         });
     });
-
-    if (isFullRefresh) {
-        applyLayout('cose');
-    }
 
     updateStatsFromData(data);
 }
@@ -557,10 +854,39 @@ function renderLayoutOptions() {
     });
 }
 
+function renderGranularityOptions() {
+    const container = document.getElementById('granularitySelector');
+    if (!container) return;
+
+    container.innerHTML = GRANULARITY_LEVELS.map(level => `
+        <div class="granularity-option ${level.id === state.granularity ? 'active' : ''}" 
+             data-granularity="${level.id}">
+            <div class="granularity-icon">
+                <i class="fas ${level.icon}"></i>
+            </div>
+            <div class="granularity-info">
+                <div class="granularity-name">${level.name}</div>
+                <div class="granularity-desc">${level.desc}</div>
+            </div>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.granularity-option').forEach(option => {
+        option.addEventListener('click', () => setGranularity(option.dataset.granularity));
+    });
+}
+
+function updateActiveGranularity() {
+    document.querySelectorAll('.granularity-option').forEach(option => {
+        option.classList.toggle('active', option.dataset.granularity === state.granularity);
+    });
+}
+
 function renderFilterList() {
     const container = document.getElementById('filterList');
     if (!container) return;
 
+    // Render only standard node types (not RAG types)
     container.innerHTML = NODE_TYPES.map(type => `
         <div class="filter-item ${state.filters[type.type] ? 'active' : ''}" 
              data-type="${type.type}">
@@ -574,13 +900,53 @@ function renderFilterList() {
     container.querySelectorAll('.filter-item').forEach(item => {
         item.addEventListener('click', () => toggleFilter(item.dataset.type));
     });
+    
+    // Render RAG filter list (hidden by default)
+    renderRagFilterList();
+    
+    // Setup RAG toggle
+    const ragToggle = document.getElementById('ragToggle');
+    if (ragToggle) {
+        ragToggle.checked = state.showRagFilters;
+        ragToggle.addEventListener('change', (e) => {
+            state.showRagFilters = e.target.checked;
+            const ragList = document.getElementById('ragFilterList');
+            if (ragList) {
+                ragList.classList.toggle('visible', state.showRagFilters);
+            }
+        });
+    }
+}
+
+function renderRagFilterList() {
+    const container = document.getElementById('ragFilterList');
+    if (!container) return;
+
+    container.innerHTML = RAG_NODE_TYPES.map(type => `
+        <div class="rag-filter-item filter-item ${state.filters[type.type] ? 'active' : ''}" 
+             data-type="${type.type}">
+            <div class="filter-color" style="background-color: ${type.color}; color: ${type.color}"></div>
+            <span class="filter-label">${type.label}</span>
+            <span class="filter-count" id="count-${type.type}">0</span>
+            <div class="filter-toggle"></div>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.rag-filter-item').forEach(item => {
+        item.addEventListener('click', () => toggleFilter(item.dataset.type));
+    });
+    
+    // Set initial visibility
+    container.classList.toggle('visible', state.showRagFilters);
 }
 
 function renderLegend() {
     const container = document.getElementById('legendList');
     if (!container) return;
 
-    container.innerHTML = NODE_TYPES.map(type => `
+    // Show all node types in legend (including RAG when enabled)
+    const typesToShow = state.showRagFilters ? ALL_NODE_TYPES : NODE_TYPES;
+    container.innerHTML = typesToShow.map(type => `
         <div class="legend-item">
             <div class="legend-node glow" style="background-color: ${type.color}; color: ${type.color}"></div>
             <span class="legend-label">${type.label}</span>
@@ -977,34 +1343,131 @@ function setMode(mode) {
 }
 
 // ===== Stats =====
-function updateStats() {
-    const nodeCount = document.getElementById('nodeCount');
-    const edgeCount = document.getElementById('edgeCount');
-    
-    if (nodeCount) nodeCount.textContent = state.counts.nodes;
-    if (edgeCount) edgeCount.textContent = state.counts.edges;
-    
-    NODE_TYPES.forEach(type => {
-        const countEl = document.getElementById(`count-${type.type}`);
-        if (countEl) countEl.textContent = state.counts[type.type] || 0;
-    });
-}
-
 function updateStatsFromData(data) {
     state.counts.nodes = data.nodes.length;
     state.counts.edges = data.edges.length;
     
     // Reset kind counts
-    NODE_TYPES.forEach(type => state.counts[type.type] = 0);
+    ALL_NODE_TYPES.forEach(type => state.counts[type.type] = 0);
+    
+    // Collect structural information
+    const packages = new Set();
+    const compilationUnits = new Set();
+    const classes = new Set();
+    const inDegree = new Map();
+    const outDegree = new Map();
     
     data.nodes.forEach(node => {
         const kinds = Array.isArray(node.kind) ? node.kind : [node.kind];
         kinds.forEach(k => {
             if (state.counts[k] !== undefined) state.counts[k]++;
         });
+        
+        // Parse method name to extract structure
+        const parsed = parseMethodName(node.methodName);
+        packages.add(parsed.package);
+        compilationUnits.add(parsed.compilationUnit);
+        classes.add(parsed.className);
+        
+        // Initialize degree counts
+        inDegree.set(node.methodName, 0);
+        outDegree.set(node.methodName, 0);
     });
     
+    // Calculate degrees from edges
+    data.edges.forEach(edge => {
+        outDegree.set(edge.source, (outDegree.get(edge.source) || 0) + 1);
+        inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
+    });
+    
+    // Calculate graph metrics
+    let maxInDeg = 0, maxOutDeg = 0, totalDegree = 0;
+    let leafNodes = 0, rootNodes = 0;
+    
+    data.nodes.forEach(node => {
+        const inDeg = inDegree.get(node.methodName) || 0;
+        const outDeg = outDegree.get(node.methodName) || 0;
+        
+        maxInDeg = Math.max(maxInDeg, inDeg);
+        maxOutDeg = Math.max(maxOutDeg, outDeg);
+        totalDegree += inDeg + outDeg;
+        
+        if (outDeg === 0) leafNodes++;
+        if (inDeg === 0) rootNodes++;
+    });
+    
+    const nodeCount = data.nodes.length;
+    const edgeCount = data.edges.length;
+    const avgDegree = nodeCount > 0 ? (totalDegree / nodeCount).toFixed(1) : 0;
+    const maxPossibleEdges = nodeCount * (nodeCount - 1);
+    const density = maxPossibleEdges > 0 ? ((edgeCount / maxPossibleEdges) * 100).toFixed(1) : 0;
+    
+    // Count SCCs
+    const sccCount = state.sccNodesMap.size;
+    let maxSccSize = 0;
+    state.sccNodesMap.forEach(nodes => {
+        maxSccSize = Math.max(maxSccSize, nodes.length);
+    });
+    
+    // Count circular nodes (nodes in SCCs with more than 1 node)
+    let circularCount = 0;
+    state.sccNodesMap.forEach(nodes => {
+        if (nodes.length > 1) circularCount += nodes.length;
+    });
+    
+    // Update state.stats
+    state.stats = {
+        packages: packages.size,
+        compilationUnits: compilationUnits.size,
+        classes: classes.size,
+        methods: nodeCount,
+        edges: edgeCount,
+        sccs: sccCount,
+        maxSccSize: maxSccSize,
+        avgDegree: avgDegree,
+        maxInDegree: maxInDeg,
+        maxOutDegree: maxOutDeg,
+        density: density,
+        entryPoints: state.counts['entry-point'] || 0,
+        leafNodes: leafNodes,
+        rootNodes: rootNodes,
+        circularNodes: circularCount
+    };
+    
     updateStats();
+}
+
+function updateStats() {
+    // Update filter counts
+    ALL_NODE_TYPES.forEach(type => {
+        const el = document.getElementById(`count-${type.type}`);
+        if (el) el.textContent = state.counts[type.type] || 0;
+    });
+    
+    // Update structure stats
+    const statElements = {
+        'statPackages': state.stats.packages,
+        'statFiles': state.stats.compilationUnits,
+        'statClasses': state.stats.classes,
+        'statMethods': state.stats.methods,
+        'statNodes': state.counts.nodes,
+        'statEdges': state.counts.edges,
+        'statEntryPoints': state.stats.entryPoints,
+        'statLeafNodes': state.stats.leafNodes,
+        'statSccs': state.stats.sccs,
+        'statMaxScc': state.stats.maxSccSize,
+        'statAvgDegree': state.stats.avgDegree,
+        'statDensity': state.stats.density + '%',
+        'statMaxInDegree': state.stats.maxInDegree,
+        'statMaxOutDegree': state.stats.maxOutDegree,
+        'statRootNodes': state.stats.rootNodes,
+        'statCircular': state.stats.circularNodes
+    };
+    
+    Object.entries(statElements).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    });
 }
 
 // ===== UI Controls =====

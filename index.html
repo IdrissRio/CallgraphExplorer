@@ -78,6 +78,15 @@
             <div class="layout-grid" id="layoutGrid"></div>
         </div>
 
+        <!-- Granularity Section -->
+        <div class="sidebar-section">
+            <div class="section-title">
+                <i class="fas fa-layer-group"></i>
+                Granularity
+            </div>
+            <div class="granularity-selector" id="granularitySelector"></div>
+        </div>
+
         <!-- Mode Section -->
         <div class="sidebar-section">
             <div class="section-title">
@@ -101,6 +110,16 @@
                 Node Filters
             </div>
             <div class="filter-list" id="filterList"></div>
+            
+            <!-- RAG Toggle -->
+            <div class="rag-toggle-container">
+                <label class="rag-toggle">
+                    <input type="checkbox" id="ragToggle">
+                    <span class="rag-toggle-slider"></span>
+                    <span class="rag-toggle-label">Show experimental RAGs</span>
+                </label>
+            </div>
+            <div class="rag-filter-list" id="ragFilterList"></div>
         </div>
 
         <!-- Statistics Section -->
@@ -109,14 +128,112 @@
                 <i class="fas fa-chart-bar"></i>
                 Statistics
             </div>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="nodeCount">0</div>
-                    <div class="stat-label">Nodes</div>
+            
+            <!-- Structure Stats -->
+            <div class="stats-category">
+                <div class="stats-category-title">Program Structure</div>
+                <div class="stats-grid compact">
+                    <div class="stat-item">
+                        <i class="fas fa-folder stat-icon"></i>
+                        <span class="stat-value" id="statPackages">0</span>
+                        <span class="stat-label">Packages</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-file-code stat-icon"></i>
+                        <span class="stat-value" id="statFiles">0</span>
+                        <span class="stat-label">Files</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-cube stat-icon"></i>
+                        <span class="stat-value" id="statClasses">0</span>
+                        <span class="stat-label">Classes</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-code stat-icon"></i>
+                        <span class="stat-value" id="statMethods">0</span>
+                        <span class="stat-label">Methods</span>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="edgeCount">0</div>
-                    <div class="stat-label">Edges</div>
+            </div>
+            
+            <!-- Graph Stats -->
+            <div class="stats-category">
+                <div class="stats-category-title">Graph Metrics</div>
+                <div class="stats-grid compact">
+                    <div class="stat-item">
+                        <i class="fas fa-circle stat-icon"></i>
+                        <span class="stat-value" id="statNodes">0</span>
+                        <span class="stat-label">Nodes</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-arrow-right stat-icon"></i>
+                        <span class="stat-value" id="statEdges">0</span>
+                        <span class="stat-label">Edges</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-play stat-icon"></i>
+                        <span class="stat-value" id="statEntryPoints">0</span>
+                        <span class="stat-label">Entry Points</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-leaf stat-icon"></i>
+                        <span class="stat-value" id="statLeafNodes">0</span>
+                        <span class="stat-label">Leaf Nodes</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Connectivity Stats -->
+            <div class="stats-category">
+                <div class="stats-category-title">Connectivity</div>
+                <div class="stats-grid compact">
+                    <div class="stat-item">
+                        <i class="fas fa-project-diagram stat-icon"></i>
+                        <span class="stat-value" id="statSccs">0</span>
+                        <span class="stat-label">SCCs</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-sync stat-icon"></i>
+                        <span class="stat-value" id="statMaxScc">0</span>
+                        <span class="stat-label">Max SCC</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-exchange-alt stat-icon"></i>
+                        <span class="stat-value" id="statAvgDegree">0</span>
+                        <span class="stat-label">Avg Degree</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-percentage stat-icon"></i>
+                        <span class="stat-value" id="statDensity">0%</span>
+                        <span class="stat-label">Density</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Degree Stats -->
+            <div class="stats-category">
+                <div class="stats-category-title">Degree Distribution</div>
+                <div class="stats-grid compact">
+                    <div class="stat-item">
+                        <i class="fas fa-arrow-down stat-icon"></i>
+                        <span class="stat-value" id="statMaxInDegree">0</span>
+                        <span class="stat-label">Max In-Degree</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-arrow-up stat-icon"></i>
+                        <span class="stat-value" id="statMaxOutDegree">0</span>
+                        <span class="stat-label">Max Out-Degree</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-sign-in-alt stat-icon"></i>
+                        <span class="stat-value" id="statRootNodes">0</span>
+                        <span class="stat-label">Root Nodes</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-sitemap stat-icon"></i>
+                        <span class="stat-value" id="statCircular">0</span>
+                        <span class="stat-label">In Cycles</span>
+                    </div>
                 </div>
             </div>
         </div>
