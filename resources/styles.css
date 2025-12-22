@@ -588,6 +588,63 @@ body, html {
     font-weight: 600;
 }
 
+/* ===== Direction Selector ===== */
+.direction-selector {
+    display: flex;
+    gap: 6px;
+}
+
+.direction-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.direction-option:hover {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: rgba(0, 212, 255, 0.3);
+}
+
+.direction-option.active {
+    background: rgba(0, 212, 255, 0.15);
+    border-color: var(--accent-primary);
+}
+
+.direction-option.active .direction-icon {
+    color: var(--accent-primary);
+    text-shadow: 0 0 10px var(--glow-primary);
+}
+
+.direction-icon {
+    font-size: 18px;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.direction-info {
+    text-align: center;
+}
+
+.direction-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.direction-desc {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
 /* ===== Granularity Selector ===== */
 .granularity-selector {
     display: flex;

@@ -37,6 +37,11 @@ const GRANULARITY_LEVELS = [
     { id: 'package', name: 'Package', icon: 'fa-folder', desc: 'Group by package' }
 ];
 
+const GRAPH_DIRECTIONS = [
+    { id: 'forward', name: 'Forward', icon: 'fa-arrow-right', desc: 'What does this method call?' },
+    { id: 'backward', name: 'Backward', icon: 'fa-arrow-left', desc: 'What calls this method?' }
+];
+
 const KEYBOARD_SHORTCUTS = [
     { keys: ['⌘', 'F'], desc: 'Focus search' },
     { keys: ['⌘', 'B'], desc: 'Toggle sidebar' },
@@ -223,6 +228,7 @@ const state = {
     mode: 'reachability', // 'reachability' or 'scc'
     currentLayout: 'cose',
     granularity: 'method', // 'method', 'class', 'compilation-unit', 'package'
+    direction: 'forward', // 'forward' or 'backward'
     rawData: null, // Store original graph data for re-aggregation
     showRagFilters: false, // Toggle for experimental RAG filters
     filters: {
@@ -324,6 +330,7 @@ function initCytoscape() {
 
 function initUI() {
     renderLayoutOptions();
+    renderDirectionOptions();
     renderGranularityOptions();
     renderFilterList();
     renderLegend();
@@ -438,12 +445,12 @@ function loadInitialData() {
 
 // ===== Graph Operations =====
 function loadGraph(data) {
-    // Store raw data for re-aggregation when granularity changes
+    // Store raw data for re-aggregation when granularity/direction changes
     state.rawData = JSON.parse(JSON.stringify(data));
     state.sccNodesMap.clear();
     
-    // Build the graph with current granularity
-    buildGraphWithGranularity(data);
+    // Build the graph with current granularity and direction
+    buildGraphWithGranularity(getDirectionalData(data));
     
     // Apply layout
     applyLayout('cose');
@@ -681,7 +688,7 @@ function setGranularity(granularity) {
     if (state.rawData) {
         console.log('Changing granularity to:', granularity, 'with', state.rawData.nodes.length, 'nodes');
         state.sccNodesMap.clear();
-        buildGraphWithGranularity(state.rawData);
+        buildGraphWithGranularity(getDirectionalData(state.rawData));
         applyLayout(state.currentLayout);
         showNotification(`View: ${GRANULARITY_LEVELS.find(l => l.id === granularity)?.name || granularity}`, 'info');
     } else {
@@ -690,30 +697,33 @@ function setGranularity(granularity) {
 }
 
 function updateGraph(data, isFullRefresh) {
-    // Store raw data for re-aggregation when granularity changes
+    // Store raw data for re-aggregation when granularity/direction changes
     state.rawData = JSON.parse(JSON.stringify(data));
     state.sccNodesMap.clear();
     
+    // Apply direction transformation
+    const directionalData = getDirectionalData(data);
+    
     if (isFullRefresh) {
         // Full refresh: rebuild with current granularity
-        buildGraphWithGranularity(data);
+        buildGraphWithGranularity(directionalData);
         applyLayout('cose');
         updateStatsFromData(data);
         return;
     }
     
-    // Incremental update (only for method-level granularity)
-    if (state.granularity !== 'method') {
-        // For aggregated views, do a full rebuild
-        buildGraphWithGranularity(data);
+    // Incremental update (only for method-level granularity and forward direction)
+    if (state.granularity !== 'method' || state.direction !== 'forward') {
+        // For aggregated views or backward direction, do a full rebuild
+        buildGraphWithGranularity(directionalData);
         applyLayout(state.currentLayout);
         updateStatsFromData(data);
         return;
     }
     
     cy.batch(() => {
-        const newNodeIds = new Set(data.nodes.map(n => n.methodName));
-        const newEdgeIds = new Set(data.edges.map(e => `${e.source}->${e.target}`));
+        const newNodeIds = new Set(directionalData.nodes.map(n => n.methodName));
+        const newEdgeIds = new Set(directionalData.edges.map(e => `${e.source}->${e.target}`));
 
         // Remove old elements
         cy.nodes().forEach(node => {
@@ -852,6 +862,64 @@ function renderLayoutOptions() {
     container.querySelectorAll('.layout-option').forEach(option => {
         option.addEventListener('click', () => applyLayout(option.dataset.layout));
     });
+}
+
+function renderDirectionOptions() {
+    const container = document.getElementById('directionSelector');
+    if (!container) return;
+
+    container.innerHTML = GRAPH_DIRECTIONS.map(dir => `
+        <div class="direction-option ${dir.id === state.direction ? 'active' : ''}" 
+             data-direction="${dir.id}">
+            <div class="direction-icon">
+                <i class="fas ${dir.icon}"></i>
+            </div>
+            <div class="direction-info">
+                <div class="direction-name">${dir.name}</div>
+                <div class="direction-desc">${dir.desc}</div>
+            </div>
+        </div>
+    `).join('');
+
+    container.querySelectorAll('.direction-option').forEach(option => {
+        option.addEventListener('click', () => setDirection(option.dataset.direction));
+    });
+}
+
+function updateActiveDirection() {
+    document.querySelectorAll('.direction-option').forEach(option => {
+        option.classList.toggle('active', option.dataset.direction === state.direction);
+    });
+}
+
+function setDirection(direction) {
+    if (state.direction === direction) return;
+    
+    state.direction = direction;
+    updateActiveDirection();
+    
+    if (state.rawData) {
+        console.log('Changing direction to:', direction);
+        state.sccNodesMap.clear();
+        buildGraphWithGranularity(getDirectionalData(state.rawData));
+        applyLayout(state.currentLayout);
+        showNotification(`Direction: ${GRAPH_DIRECTIONS.find(d => d.id === direction)?.name || direction}`, 'info');
+    }
+}
+
+function getDirectionalData(data) {
+    if (state.direction === 'forward') {
+        return data;
+    }
+    
+    // For backward direction, reverse all edges
+    return {
+        nodes: data.nodes,
+        edges: data.edges.map(edge => ({
+            source: edge.target,
+            target: edge.source
+        }))
+    };
 }
 
 function renderGranularityOptions() {
